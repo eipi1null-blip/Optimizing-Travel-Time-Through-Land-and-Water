@@ -1,0 +1,464 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>Fastest Route Across a Circular Lake</title>
+  <style>
+    :root {
+      --panel: #e9edf6;
+      --panel-line: #5b70ad;
+      --ink: #45454d;
+      --lake: #e9f8fc;
+      --lake-stroke: #66bdd8;
+      --route: #576fb4;
+      --shore-route: #2457a0;
+      --purple: #6b3aa0;
+      --red: #ed2d46;
+      --red-line: #e35272;
+      --border: #888b92;
+      --white: #fff;
+    }
+
+    * {
+      box-sizing: border-box;
+    }
+
+    body {
+      margin: 0;
+      min-height: 100vh;
+      background: var(--white);
+      color: var(--ink);
+      font-family: Georgia, "Times New Roman", serif;
+      overflow: hidden;
+    }
+
+    .applet {
+      width: 100vw;
+      height: 100vh;
+      min-height: 560px;
+      display: grid;
+      grid-template-columns: minmax(320px, 38vw) minmax(0, 1fr);
+      border: 2px solid var(--border);
+      background: var(--white);
+      overflow: hidden;
+    }
+
+    .panel {
+      position: relative;
+      padding: clamp(16px, 2vw, 26px);
+      background: var(--panel);
+      border-right: 5px solid var(--panel-line);
+      overflow: hidden;
+    }
+
+    .title {
+      margin: 0 0 18px;
+      font-size: clamp(31px, 3.6vw, 48px);
+      line-height: 1;
+      font-weight: 700;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    }
+
+    .selector {
+      width: min(260px, calc(100% - 96px));
+      aspect-ratio: 1;
+      margin: 0 auto clamp(40px, 7vh, 88px);
+      position: relative;
+      border: 5px solid var(--red-line);
+      background: rgba(226, 189, 207, 0.42);
+      touch-action: none;
+    }
+
+    .speed-dot,
+    .point {
+      position: absolute;
+      width: 35px;
+      height: 35px;
+      border: 3px solid #111;
+      border-radius: 50%;
+      transform: translate(-50%, -50%);
+      cursor: grab;
+      z-index: 4;
+      touch-action: none;
+    }
+
+    .speed-dot {
+      background: var(--red);
+    }
+
+    .readouts {
+      display: grid;
+      gap: clamp(16px, 4vh, 28px);
+      font-size: clamp(28px, 3.2vw, 43px);
+      line-height: 1.25;
+      font-weight: 700;
+      text-shadow: 0 1px 2px rgba(0, 0, 0, 0.18);
+    }
+
+    .readouts p {
+      margin: 0;
+    }
+
+    .time p + p,
+    .speed-values p + p {
+      margin-top: 4px;
+    }
+
+    .time-value {
+      display: block;
+      padding-left: 52px;
+    }
+
+    .lake-wrap {
+      position: relative;
+      min-width: 0;
+      background: var(--white);
+      overflow: hidden;
+    }
+
+    #lakeCanvas {
+      display: block;
+      width: 100%;
+      height: 100%;
+      min-height: 0;
+      touch-action: none;
+    }
+
+    @media (max-width: 880px) {
+      .applet {
+        grid-template-columns: 1fr;
+        min-height: 0;
+      }
+
+      .panel {
+        border-right: 0;
+        border-bottom: 5px solid var(--panel-line);
+      }
+
+      .selector {
+        width: min(260px, 80vw);
+        margin-bottom: 34px;
+      }
+
+      .readouts {
+        font-size: 30px;
+      }
+    }
+  
+    /* Content remains reachable at browser zoom and on short or narrow screens. */
+    body { overflow: auto; }
+    .applet { width: 100%; height: auto; min-height: 100svh; grid-template-columns: minmax(290px, 34%) minmax(0, 1fr); overflow: visible; }
+    .panel { padding: 20px; overflow: visible; border-right: 5px solid var(--panel-line); border-bottom: 0; }
+    .title { font-size: clamp(26px, 3vw, 38px); margin-bottom: 12px; }
+    .selector { width: min(170px, 60%); margin: 16px auto 24px; border-width: 3px; }
+    .speed-dot { width: 28px; height: 28px; }
+    .readouts { font-size: clamp(20px, 2.2vw, 29px); gap: 16px; text-shadow: none; }
+    .time-value { padding-left: 0; font-variant-numeric: tabular-nums; }
+    .time { padding: 12px; background: white; border-radius: 8px; }
+    .lake-wrap { min-height: 440px; }
+    #lakeCanvas { position: absolute; inset: 0; }
+    .hint { font: 15px/1.4 system-ui, sans-serif; margin: 10px 0; }
+    .presets { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+    button, input { font: inherit; }
+    button { padding: 8px 12px; border: 1px solid #5b70ad; border-radius: 6px; background: white; color: #263d76; cursor: pointer; min-height: 42px; }
+    button:focus-visible, input:focus-visible { outline: 3px solid #6b3aa0; outline-offset: 3px; }
+    .fields { display: grid; gap: 10px; font: 16px/1.4 system-ui, sans-serif; }
+    .fields label { display: flex; align-items: center; justify-content: space-between; gap: 8px; }
+    input[type=number] { width: 85px; padding: 6px; }
+    .route-control { margin-top: 18px; font: 16px/1.4 system-ui, sans-serif; }
+    input[type=range] { display: block; width: 100%; min-height: 36px; }
+    @media (max-height: 720px) and (min-width: 761px) {
+      .selector { width: 110px; margin: 10px auto 18px; }
+      .panel { padding: 14px 18px; }
+      .title { font-size: 28px; }
+      .readouts { font-size: 22px; gap: 10px; }
+      .hint { margin: 6px 0; }
+      .route-control { margin-top: 10px; }
+    }
+    @media (max-width: 760px) {
+      .applet { grid-template-columns: 1fr; }
+      .panel { border-right: 0; border-bottom: 3px solid var(--panel-line); }
+      .selector { width: 110px; float: right; margin: 12px 20px 20px; }
+      .readouts { clear: both; font-size: 22px; }
+      .speed-values { display: none; }
+      .lake-wrap { min-height: min(85vw, 520px); }
+    }
+  </style>
+</head>
+<body>
+  <main class="applet" aria-label="Fastest route across a circular lake applet">
+    <aside class="panel">
+      <h1 class="title">Across the lake</h1>
+      <p class="hint">Lake diameter: <strong>300 m</strong>. Swim from A to C, then follow the shore to B.</p>
+      <div class="presets"><button type="button" id="robot1">Robot 1</button><button type="button" id="robot2">Robot 2</button></div>
+      <div class="fields">
+        <label>Water (m/s) <input id="waterInput" type="number" min="0.5" max="3" step="0.01" value="1"></label>
+        <label>Land (m/s) <input id="landInput" type="number" min="1" max="3" step="0.01" value="3"></label>
+      </div>
+      <p class="hint">Enter exact speeds, or drag the red point: water increases →, land increases ↑.</p>
+      <div id="selector" class="selector" aria-label="Drag the red point to choose water and ground speeds">
+        <div id="speedDot" class="speed-dot" aria-label="Speed selector point"></div>
+      </div>
+
+      <section class="readouts" aria-live="polite">
+        <div class="speed-values">
+          <p>Speed</p>
+          <p>in water: <span id="waterSpeed">1.45</span> m/s</p>
+          <p>on ground: <span id="landSpeed">2.49</span> m/s</p>
+        </div>
+        <div class="time">
+          <p>Total time:</p>
+          <p class="time-value"><span id="totalTime">236.45</span> seconds</p>
+        </div>
+      </section>
+      <div class="route-control"><label for="routeAngle">Shore angle C–O–B: <span id="angleText"></span>°</label>
+      <input id="routeAngle" type="range" min="0" max="180" step="0.1" value="38.9">
+      <p class="hint">Drag C or use the slider. 0° = all water; 180° = all land.</p></div>
+    </aside>
+
+    <section class="lake-wrap" aria-label="Lake route diagram">
+      <canvas id="lakeCanvas" width="760" height="740"></canvas>
+    </section>
+  </main>
+
+  <script>
+    const selector = document.getElementById("selector");
+    const speedDot = document.getElementById("speedDot");
+    const canvas = document.getElementById("lakeCanvas");
+    const ctx = canvas.getContext("2d");
+    const waterSpeedText = document.getElementById("waterSpeed");
+    const landSpeedText = document.getElementById("landSpeed");
+    const totalTimeText = document.getElementById("totalTime");
+
+    const WATER_MIN = 0.5;
+    const WATER_MAX = 3.00;
+    const LAND_MIN = 1.00;
+    const LAND_MAX = 3.00;
+    const LAKE_RADIUS_METERS = 150;
+
+    let waterSpeed = 1;
+    let landSpeed = 3;
+    let cTheta = 0.6785;
+    let dragging = null;
+
+    function clamp(value, min, max) {
+      return Math.min(max, Math.max(min, value));
+    }
+
+    function format(value) {
+      return value.toFixed(2);
+    }
+
+    function speedToSelector() {
+      const x = (waterSpeed - WATER_MIN) / (WATER_MAX - WATER_MIN);
+      const y = 1 - (landSpeed - LAND_MIN) / (LAND_MAX - LAND_MIN);
+      return { x, y };
+    }
+
+    function selectorToSpeed(x, y) {
+      waterSpeed = Math.round((WATER_MIN + x * (WATER_MAX - WATER_MIN)) * 100) / 100;
+      landSpeed = Math.round((LAND_MIN + (1 - y) * (LAND_MAX - LAND_MIN)) * 100) / 100;
+    }
+
+    function updateSpeedDot() {
+      const pos = speedToSelector();
+      speedDot.style.left = `${pos.x * 100}%`;
+      speedDot.style.top = `${pos.y * 100}%`;
+      speedDot.setAttribute("aria-valuetext", `Water ${format(waterSpeed)} meters per second, ground ${format(landSpeed)} meters per second`);
+    }
+
+    function lakeGeometry(width, height) {
+      const radius = Math.max(10, Math.min((width - 120) / 2, (height - 110) / 2));
+      const center = { x: width * 0.50, y: height * 0.53 };
+      const a = { x: center.x - radius, y: center.y };
+      const b = { x: center.x + radius, y: center.y };
+      const c = {
+        x: center.x + radius * Math.cos(cTheta),
+        y: center.y - radius * Math.sin(cTheta)
+      };
+      return { radius, center, a, b, c };
+    }
+
+    function routeTime() {
+      const waterDistance = 2 * LAKE_RADIUS_METERS * Math.cos(cTheta / 2);
+      const landDistance = LAKE_RADIUS_METERS * cTheta;
+      return waterDistance / waterSpeed + landDistance / landSpeed;
+    }
+
+    function drawPoint(point, color) {
+      ctx.beginPath();
+      ctx.arc(point.x, point.y, 17, 0, Math.PI * 2);
+      ctx.fillStyle = color;
+      ctx.strokeStyle = "#111";
+      ctx.lineWidth = 3;
+      ctx.fill();
+      ctx.stroke();
+    }
+
+    function drawLabel(text, x, y, color, size = 50) {
+      ctx.save();
+      ctx.fillStyle = color;
+      ctx.font = `700 ${size}px Georgia, Times New Roman, serif`;
+      ctx.textAlign = "center";
+      ctx.textBaseline = "middle";
+      ctx.fillText(text, x, y);
+      ctx.restore();
+    }
+
+    function drawLake() {
+      const rect = canvas.getBoundingClientRect();
+      const dpr = window.devicePixelRatio || 1;
+      const nextWidth = Math.max(1, Math.round(rect.width * dpr));
+      const nextHeight = Math.max(1, Math.round(rect.height * dpr));
+      if (canvas.width !== nextWidth || canvas.height !== nextHeight) {
+        canvas.width = nextWidth;
+        canvas.height = nextHeight;
+      }
+      ctx.setTransform(dpr, 0, 0, dpr, 0, 0);
+
+      const width = rect.width;
+      const height = rect.height;
+      const { radius, center, a, b, c } = lakeGeometry(width, height);
+
+      ctx.clearRect(0, 0, width, height);
+
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, radius, 0, Math.PI * 2);
+      ctx.fillStyle = "rgba(226, 246, 251, 0.86)";
+      ctx.strokeStyle = "#66bdd8";
+      ctx.lineWidth = 5;
+      ctx.fill();
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.arc(center.x, center.y, radius, -cTheta, 0);
+      ctx.strokeStyle = "#2457a0";
+      ctx.lineWidth = 6;
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      ctx.beginPath();
+      ctx.moveTo(a.x, a.y);
+      ctx.lineTo(c.x, c.y);
+      ctx.strokeStyle = "#576fb4";
+      ctx.lineWidth = 5;
+      ctx.lineCap = "round";
+      ctx.stroke();
+
+      drawPoint(a, "#6b3aa0");
+      drawPoint(b, "#6b3aa0");
+      drawPoint(center, "#6b3aa0");
+      drawPoint(c, "#ed2d46");
+
+      drawLabel("A", a.x - 44, a.y + 8, "#6b3aa0");
+      drawLabel("B", b.x + 44, b.y, "#6b3aa0");
+      drawLabel("O", center.x + 34, center.y + 45, "#6b3aa0");
+      drawLabel("C", c.x + 42, c.y - 30, "#ed2d46");
+    }
+
+    function isNearPoint(p, target, radius = 36) {
+      return Math.hypot(p.x - target.x, p.y - target.y) <= radius;
+    }
+
+    function updateReadouts() {
+      waterSpeedText.textContent = format(waterSpeed);
+      landSpeedText.textContent = format(landSpeed);
+      totalTimeText.textContent = format(routeTime());
+    }
+
+    const waterInput = document.getElementById('waterInput');
+    const landInput = document.getElementById('landInput');
+    const routeAngle = document.getElementById('routeAngle');
+    for (const input of [waterInput, landInput]) input.addEventListener('change', () => {
+      if (!input.checkValidity()) { input.reportValidity(); return; }
+      waterSpeed = Number(waterInput.value);
+      landSpeed = Number(landInput.value);
+      render();
+    });
+    document.getElementById('robot1').onclick = () => { waterSpeed = 1; landSpeed = 3; render(); };
+    document.getElementById('robot2').onclick = () => { waterSpeed = 2; landSpeed = 3; render(); };
+    routeAngle.oninput = () => { cTheta = Number(routeAngle.value) * Math.PI / 180; render(); };
+    window.addEventListener('pointercancel', () => { dragging = null; });
+    new ResizeObserver(() => drawLake()).observe(canvas);
+    function render() {
+      waterInput.value = waterSpeed;
+      landInput.value = landSpeed;
+      routeAngle.value = cTheta * 180 / Math.PI;
+      document.getElementById('angleText').textContent = (cTheta * 180 / Math.PI).toFixed(1);
+      updateSpeedDot();
+      updateReadouts();
+      drawLake();
+    }
+
+    function selectorPointer(event) {
+      const rect = selector.getBoundingClientRect();
+      return {
+        x: clamp((event.clientX - rect.left) / rect.width, 0, 1),
+        y: clamp((event.clientY - rect.top) / rect.height, 0, 1)
+      };
+    }
+
+    function canvasPointer(event) {
+      const rect = canvas.getBoundingClientRect();
+      return {
+        x: event.clientX - rect.left,
+        y: event.clientY - rect.top
+      };
+    }
+
+    function setCFromPointer(event) {
+      const rect = canvas.getBoundingClientRect();
+      const { center } = lakeGeometry(rect.width, rect.height);
+      const p = canvasPointer(event);
+      let angle = Math.atan2(center.y - p.y, p.x - center.x);
+      if (angle < 0) {
+        angle = p.x < center.x ? Math.PI : 0;
+      }
+      cTheta = clamp(angle, 0, Math.PI);
+      render();
+    }
+
+    selector.addEventListener("pointerdown", (event) => {
+      event.preventDefault();
+      dragging = "speed";
+      selector.setPointerCapture(event.pointerId);
+      const p = selectorPointer(event);
+      selectorToSpeed(p.x, p.y);
+      render();
+    });
+
+    selector.addEventListener("pointermove", (event) => {
+      if (dragging !== "speed") return;
+      event.preventDefault();
+      const p = selectorPointer(event);
+      selectorToSpeed(p.x, p.y);
+      render();
+    });
+
+    canvas.addEventListener("pointerdown", (event) => {
+      const rect = canvas.getBoundingClientRect();
+      const { c } = lakeGeometry(rect.width, rect.height);
+      const p = canvasPointer(event);
+      if (!isNearPoint(p, c)) return;
+      event.preventDefault();
+      dragging = "pointC";
+      canvas.setPointerCapture(event.pointerId);
+      setCFromPointer(event);
+    });
+
+    canvas.addEventListener("pointermove", (event) => {
+      if (dragging !== "pointC") return;
+      event.preventDefault();
+      setCFromPointer(event);
+    });
+
+    window.addEventListener("pointerup", () => {
+      dragging = null;
+    });
+
+    window.addEventListener("resize", render);
+    render();
+  </script>
+</body>
+</html>
